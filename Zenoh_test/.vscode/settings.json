@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "esp32.h": "c",
+        "logging.h": "c",
+        "unix.h": "c",
+        "result.h": "c",
+        "config.h": "c",
+        "olv_macros.h": "c",
+        "uuid.h": "c"
+    }
+}

@@ -1,73 +1,124 @@
+//
+// Copyright (c) 2022 ZettaScale Technology
+//
+// This program and the accompanying materials are made available under the
+// terms of the Eclipse Public License 2.0 which is available at
+// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
+// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+//
+// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+//
+// Contributors:
+//   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+//
+
 #include <Arduino.h>
+#include <WiFi.h>
+#include <zenoh-pico.h>
+#include "my_env.h"
 
-TaskHandle_t Task1;
-TaskHandle_t Task2;
+#if Z_FEATURE_PUBLICATION == 1
+// Client mode values (comment/uncomment as needed)
+#define MODE "client"
+#define CONNECT ""  // If empty, it will scout
+// Peer mode values (comment/uncomment as needed)
+// #define MODE "peer"
+// #define CONNECT "udp/224.0.0.225:7447#iface=en0"
 
-// LED pins
-const int led1 = 2;
-const int led2 = 4;
+#define KEYEXPR "demo/example/zenoh-pico-pub"
+#define VALUE "[ARDUINO]{ESP32} Publication from Zenoh-Pico!"
 
-void Task1code( void * pvParameters );
-void Task2code( void * pvParameters );
+z_owned_session_t s;
+z_owned_publisher_t pub;
+static int idx = 0;
 
 void setup() {
-  Serial.begin(9600); 
-  pinMode(led1, OUTPUT);
-  pinMode(led2, OUTPUT);
+    // Initialize Serial for debug
+    Serial.begin(9600);
+    while (!Serial) {
+        delay(1000);
+    }
 
-  //create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
-  xTaskCreatePinnedToCore(
-                    Task1code,   /* Task function. */
-                    "Task1",     /* name of task. */
-                    10000,       /* Stack size of task */
-                    NULL,        /* parameter of the task */
-                    1,           /* priority of the task */
-                    &Task1,      /* Task handle to keep track of created task */
-                    0);          /* pin task to core 0 */                  
-  delay(500); 
+    // Set WiFi in STA mode and trigger attachment
+    Serial.print("Connecting to WiFi...");
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(SSID, PASS);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+    }
+    Serial.println("OK");
 
-  //create a task that will be executed in the Task2code() function, with priority 1 and executed on core 1
-  xTaskCreatePinnedToCore(
-                    Task2code,   /* Task function. */
-                    "Task2",     /* name of task. */
-                    10000,       /* Stack size of task */
-                    NULL,        /* parameter of the task */
-                    1,           /* priority of the task */
-                    &Task2,      /* Task handle to keep track of created task */
-                    1);          /* pin task to core 1 */
-    delay(500); 
-}
+    // Initialize Zenoh Session and other parameters
+    z_owned_config_t config;
+    z_config_default(&config);
+    zp_config_insert(z_config_loan_mut(&config), Z_CONFIG_MODE_KEY, MODE);
+    if (strcmp(CONNECT, "") != 0) {
+        zp_config_insert(z_config_loan_mut(&config), Z_CONFIG_CONNECT_KEY, CONNECT);
+    }
 
-//Task1code: blinks an LED every 1000 ms
-void Task1code( void * pvParameters ){
-  Serial.print("Task1 running on core ");
-  Serial.println(xPortGetCoreID());
+    // Open Zenoh session
+    Serial.print("Opening Zenoh Session...");
+    z_result_t re = z_open(&s, z_config_move(&config), NULL);
+    if (re < 0) {
+        Serial.printf("Unable to open session! %d\n\r", re);
+        while (1) {
+            ;
+        }
+    }
+    Serial.println("OK");
 
-  for(;;){
-    Serial.print("Task1 running on core ");
-    Serial.println(xPortGetCoreID());
-    digitalWrite(led1, HIGH);
-    delay(1000);
-    digitalWrite(led1, LOW);
-    delay(1000);
-  } 
-}
+    // // Start read and lease tasks for zenoh-pico
+    // z_result_t re_t =  zp_start_read_task(z_session_loan_mut(&s), NULL);
+    // z_result_t le_t = zp_start_lease_task(z_session_loan_mut(&s), NULL);
+    // if (re_t < 0 || le_t < 0) {
+    //     Serial.printf("Unable to start read and lease tasks %d %d\n", re_t, le_t);
+    //     z_close(z_session_move(&s), NULL);
+    //     while (1) {
+    //         ;
+    //     }
+    // }
 
-//Task2code: blinks an LED every 700 ms
-void Task2code( void * pvParameters ){
-  Serial.print("Task2 running on core ");
-  Serial.println(xPortGetCoreID());
+    // Declare Zenoh publisher
+    Serial.print("Declaring publisher for ");
+    Serial.print(KEYEXPR);
+    Serial.println("...");
+    z_view_keyexpr_t ke;
+    z_view_keyexpr_from_str_unchecked(&ke, KEYEXPR);
+    if (z_declare_publisher(&pub, z_session_loan(&s), z_view_keyexpr_loan(&ke), NULL) < 0) {
+        Serial.println("Unable to declare publisher for key expression!");
+        while (1) {
+            ;
+        }
+    }
+    Serial.println("OK");
+    Serial.println("Zenoh setup finished!");
 
-  for(;;){
-    Serial.print("Task2 running on core ");
-    Serial.println(xPortGetCoreID());
-    digitalWrite(led2, HIGH);
-    delay(700);
-    digitalWrite(led2, LOW);
-    delay(700);
-  }
+    delay(300);
 }
 
 void loop() {
-  
+    // delay(1000);
+    char buf[256];
+    sprintf(buf, "[%4d] %s", idx++, VALUE);
+
+    // Serial.print("Writing Data ('");
+    // Serial.print(KEYEXPR);
+    // Serial.print("': '");
+    // Serial.print(buf);
+    // Serial.println("')");
+
+    // Create payload
+    z_owned_bytes_t payload;
+    z_bytes_serialize_from_str(&payload, buf);
+
+    if (z_publisher_put(z_publisher_loan(&pub), z_bytes_move(&payload), NULL) < 0) {
+        Serial.println("Error while publishing data");
+    }
 }
+#else
+void setup() {
+    Serial.println("ERROR: Zenoh pico was compiled without Z_FEATURE_PUBLICATION but this example requires it.");
+    return;
+}
+void loop() {}
+#endif
