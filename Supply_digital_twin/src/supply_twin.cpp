@@ -11,6 +11,7 @@ float calculate_voltage(float current, float time) {
 
     // Напряжение на выходе с учетом внутреннего сопротивления
     float output_voltage = source_voltage - RESISTANCE * current;
+    if (output_voltage < 0) return 0;
     
     return output_voltage;
 }

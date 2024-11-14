@@ -60,6 +60,10 @@ void error_loop() {
 void timer_callback(rcl_timer_t * timer, int64_t last_call_time) {
   RCLC_UNUSED(last_call_time);
   if (timer != NULL) {
+    // static float time = 0.0f;  // Начальное время
+    // float current_1 = msg_sub_1.data;
+    // msg.data = calculate_voltage(current_1, time);
+
     RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
     // msg.data++;
   }
@@ -140,11 +144,11 @@ void setup() {
     "micro_ros_arduino_subscriber2"));
 
     // create subscriber
-  RCCHECK(rclc_subscription_init_best_effort(
-    &subscriber3,
-    &node,
-    ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-    "micro_ros_arduino_subscriber3"));
+  // RCCHECK(rclc_subscription_init_best_effort(
+  //   &subscriber3,
+  //   &node,
+  //   ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+  //   "micro_ros_arduino_subscriber3"));
 
   // create timer,
   const unsigned int timer_timeout = 1;
@@ -171,40 +175,6 @@ void setup() {
     delay(250);
   }
   
-
-
-  // //create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
-  // xTaskCreatePinnedToCore(
-  //                   Task1code,   /* Task function. */
-  //                   "Task1",     /* name of task. */
-  //                   10000 * 1,       /* Stack size of task */
-  //                   NULL,        /* parameter of the task */
-  //                   3,           /* priority of the task */
-  //                   &Task1,      /* Task handle to keep track of created task */
-  //                   0);          /* pin task to core 0 */                  
-  // delay(500); 
-
-  // //create a task that will be executed in the Task2code() function, with priority 1 and executed on core 1
-  // xTaskCreatePinnedToCore(
-  //                   Task2code,   /* Task function. */
-  //                   "Task2",     /* name of task. */
-  //                   10000,       /* Stack size of task */
-  //                   NULL,        /* parameter of the task */
-  //                   1,           /* priority of the task */
-  //                   &Task2,      /* Task handle to keep track of created task */
-  //                   0);          /* pin task to core 1 */
-  //   delay(500); 
-
-     //create a task that will be executed in the Task2code() function, with priority 1 and executed on core 1
-  // xTaskCreatePinnedToCore(
-  //                   Task3code,   /* Task function. */
-  //                   "Task3",     /* name of task. */
-  //                   10000,       /* Stack size of task */
-  //                   NULL,        /* parameter of the task */
-  //                   1,           /* priority of the task */
-  //                   &Task3,      /* Task handle to keep track of created task */
-  //                   0);          /* pin task to core 1 */
-  //   delay(500); 
 }
 
 //Task1code: blinks an LED every 1000 ms
@@ -239,10 +209,8 @@ void Task2code( void * pvParameters ){
 
 void loop() {
   RCCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1)));
-      // RCSOFTCHECK(rclc_executor_spin(&executor));
-    //       RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
-    // msg.data++;
-    static float time = 0.0f;  // Начальное время
+
+  static float time = 0.0f;  // Начальное время
   if (calc_timer_flag) {
     portENTER_CRITICAL(&timerMux);
     calc_timer_flag = false;
